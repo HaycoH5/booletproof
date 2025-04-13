@@ -10,7 +10,7 @@ import logging
 from datetime import datetime
 
 
-TEST_SIZE = 10
+TEST_SIZE = 6
 BATCH_SIZE = 1
 # Получение пути к директории скрипта
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -117,7 +117,6 @@ Please analyze each message and extract the following information for each opera
 6. С начала операции, га (Total area since operation start, hectares) - second number in pairs like "41/501"
 7. Вал за день, ц (Yield per day, centners)
 8. Вал с начала, ц (Total yield since operation start, centners)
-9. Исходное сообщение (Original message) - include ALL relevant parts of the message that describe this operation, including shared information like date, operation type, or crop type
 
 Format your response as a JSON array, where each element represents one operation:
 [
@@ -130,7 +129,6 @@ Format your response as a JSON array, where each element represents one operatio
         "С начала операции, га": "170",
         "Вал за день, ц": "",
         "Вал с начала, ц": "",
-        "Исходное сообщение": "Север\\nСев сах св\\nПоПу 403/982\\nОтд 11 73/170"
     }},
     // more operations if present in the message
 ]
@@ -174,7 +172,8 @@ def process_messages_batch(messages: List[str], system_prompt: str, client: Open
         )
         
         response = completion.choices[0].message.content
-        logger.info("\nAPI Response:", response)  # Debug print
+        # Закомментируем проблемную строку логирования
+        # logger.info("\nAPI Response:", response)  # Debug print
         
         try:
             # Parse the JSON response
@@ -194,7 +193,8 @@ def process_messages_batch(messages: List[str], system_prompt: str, client: Open
             
         except json.JSONDecodeError as e:
             logger.error(f"Error parsing JSON response: {e}")
-            logger.error("Raw response:", response)
+            # Закомментируем проблемную строку логирования
+            # logger.error("Raw response:", response)
             # Try to extract any valid JSON from the response
             try:
                 # Find anything that looks like JSON array
@@ -260,10 +260,11 @@ def process_agro_messages(messages: List[str], batch_size: int = 1, save_to_exce
     system_prompt = create_system_prompt(instruction_data)
     
     # Print the system prompt for verification
-    logger.info("System prompt:")
-    logger.info("="*80)
-    logger.info(system_prompt)
-    logger.info("="*80)
+    # Закомментируем проблемные строки логирования
+    # logger.info("System prompt:")
+    # logger.info("="*80)
+    # logger.info(system_prompt)
+    # logger.info("="*80)
     
     logger.info(f"Total messages to process: {len(messages)}")
     
@@ -319,23 +320,24 @@ def main():
         all_messages = messages_df['Данные для тренировки'].dropna().tolist()
         
         # Select random messages for testing
-        test_size = 5  # TEST_SIZE
+        test_size = TEST_SIZE
         test_messages = random.sample(all_messages, min(test_size, len(all_messages)))
         
         # Process messages
         results_df = process_agro_messages(
             messages=test_messages,
-            batch_size=1,  # BATCH_SIZE
+            batch_size=BATCH_SIZE,
             save_to_excel=True
         )
         
         # Display first few results
-        logger.info("First few results:")
-        logger.info(results_df.head().to_string())
+        # Закомментируем проблемные строки логирования
+        # logger.info("First few results:")
+        # logger.info(results_df.head().to_string())
         
     except Exception as e:
         logger.error(f"Error in main function: {e}")
         raise
 
 if __name__ == "__main__":
-    main() 
+    main()
