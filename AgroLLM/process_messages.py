@@ -10,7 +10,7 @@ import logging
 from datetime import datetime
 
 
-TEST_SIZE = 6
+TEST_SIZE = 10
 BATCH_SIZE = 1
 # Получение пути к директории скрипта
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
