@@ -1,37 +1,65 @@
 from flask import Flask, request, jsonify
 import os
-import json
 from datetime import datetime
+from pathlib import Path
+
+from AgroLLM.process_messages import LLMProcess
+from user_and_system_interface.data_save import DataSave
+
+import config
 
 app = Flask(__name__)
-BASE_DIR = 'agro_data'
+
+data_save = DataSave(config.base_dir)
+LLM_Process = LLMProcess()
+
+
+# Базовая директория для хранения данных
+BASE_DIR = Path('agro_data')
+
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    data = request.json
+    """
+    Обработчик входящих данных с WhatsApp-подобного вебхука.
+    Сохраняет сообщения и, при наличии, медиафайлы в структуре каталогов:
+    agro_data/{номер_телефона}/{дата}/
+    """
+    data = request.get_json()
+
+    # Проверка, что данные есть и содержат номер отправителя
     if not data or 'from' not in data:
-        return jsonify({'error': 'invalid data'}), 400
+        return jsonify({'error': 'Invalid data: missing "from" field'}), 400
 
     phone = data['from']
     date_str = datetime.utcnow().strftime('%Y-%m-%d')
-    user_dir = os.path.join(BASE_DIR, phone, date_str)
-    media_dir = os.path.join(user_dir, 'media')
+
+    # Создание необходимых директорий
+    user_dir = BASE_DIR / phone / date_str
+    media_dir = user_dir / 'media'
     os.makedirs(media_dir, exist_ok=True)
 
+    # Обработка медиа-файлов, если они присутствуют
     if data.get('type') == 'media' and 'media_data' in data:
-        ext = data.get('ext', 'bin')
-        media_filename = f'media_{int(datetime.utcnow().timestamp())}.{ext}'
-        media_path = os.path.join(media_dir, media_filename)
-        with open(media_path, 'wb') as f:
-            f.write(bytes.fromhex(data['media_data']))
-        data['media_path'] = os.path.relpath(media_path, user_dir)
-        data.pop('media_data')
+        ext = data.get('ext', 'bin')  # расширение по умолчанию
+        timestamp = int(datetime.utcnow().timestamp())
+        media_filename = f'media_{timestamp}.{ext}'
+        media_path = media_dir / media_filename
 
-    log_path = os.path.join(user_dir, 'messages.jsonl')
-    with open(log_path, 'a', encoding='utf-8') as f:
-        f.write(json.dumps(data, ensure_ascii=False) + '\n')
+        try:
+            # Декодируем hex-строку в байты и сохраняем файл
+            with open(media_path, 'wb') as f:
+                f.write(bytes.fromhex(data['media_data']))
+        except ValueError:
+            return jsonify({'error': 'Invalid media_data format'}), 400
 
-    return jsonify({'status': 'ok'})
+        # Сохраняем относительный путь к файлу в логах
+        data['media_path'] = str(media_path.relative_to(user_dir))
+        data.pop('media_data')  # Удаляем большие бинарные данные
+
+        data_save.save_to_txt(data)
+        LLM_Process.start(data_save.append_to_excel)
 
 if __name__ == '__main__':
+    # Запуск приложения в режиме отладки (для разработки)
     app.run(debug=True)
