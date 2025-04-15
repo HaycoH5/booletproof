@@ -2,8 +2,9 @@
 
 Установка зависимостей
 1. npm init -y
-2. npm install whatsapp-web.js qrcode-terminal axios
-3. pip install flask
+2. npm install whatsapp-web.js qrcode-terminal axios express multer
+3. pip install flask requests apscheduler
+
 
 Запуск
 1. Запустить фласк сервер (python файл)
