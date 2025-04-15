@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from AgroLLM.process_messages import LLMProcess
@@ -11,7 +11,7 @@ import config
 app = Flask(__name__)
 
 data_save = DataSave(config.base_dir)
-#LLM_Process = LLMProcess()
+LLM_Process = LLMProcess()
 
 
 # Базовая директория для хранения данных
@@ -32,7 +32,7 @@ def webhook():
         return jsonify({'error': 'Invalid data: missing "from" field'}), 400
 
     phone = data['from']
-    date_str = datetime.utcnow().strftime('%Y-%m-%d')
+    date_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
 
     # Создание необходимых директорий
     user_dir = BASE_DIR / phone / date_str
@@ -57,8 +57,9 @@ def webhook():
         data['media_path'] = str(media_path.relative_to(user_dir))
         data.pop('media_data')  # Удаляем большие бинарные данные
 
-        #LLM_Process.start(data_save.append_to_excel)
+    print(data)
     data_save.save_to_txt(data)
+    print(LLM_Process.process_messages(data_save.append_to_excel, data["content"]))
     return jsonify({'status': 'ok'})
 
 

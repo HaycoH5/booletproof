@@ -44,32 +44,65 @@ class DataSave:
             file.write(content + '\n')
 
 
-    def append_to_excel(self, excel_path, data_list):
-        """Открывает существующий Excel-файл и добавляет в него строки из JSON-данных."""
+    def append_message_to_table(self, filepath, message_dict, date_value):
+        """
+        Добавляет строку в таблицу Excel. Пустые значения, включая автоподставленную дату, выделяются жёлтым.
+        """
+        wb = load_workbook(filepath)
+        ws = wb.active
 
-        wb = load_workbook(excel_path)
-        ws = wb.active  # Можно уточнить имя листа, если нужно
+        headers = ["Дата", "Подразделение", "Операция", "Культура",
+                   "За день, га", "С начала операции, га",
+                   "Вал за день, ц", "Вал с начала, ц", "Исходное сообщение"]
 
-        # Определяем, с какой строки начинать (после последней непустой)
-        start_row = ws.max_row + 1
-
+        normalized_headers = [h.strip().lower() for h in headers]
         yellow_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
 
-        for row_index, entry in enumerate(data_list, start=start_row):
-            # Добавляем данные в ячейки
-            ws.cell(row=row_index, column=1, value=entry.get("date"))
-            ws.cell(row=row_index, column=2, value=entry.get("department"))
-            ws.cell(row=row_index, column=3, value=entry.get("operation"))
-            ws.cell(row=row_index, column=4, value=entry.get("crop"))
-            ws.cell(row=row_index, column=5, value=entry.get("area_per_day"))
-            ws.cell(row=row_index, column=6, value=entry.get("operation_start"))
-            ws.cell(row=row_index, column=7, value=entry.get("yield_per_day"))
-            ws.cell(row=row_index, column=8, value=entry.get("yield_total"))
+        header_row = None
+        header_map = {}
 
-            # Проверяем значения и закрашиваем ячейки, если они равны "none"
-            for col_index in range(1, 9):  # Обходим все 8 колонок
-                cell_value = ws.cell(row=row_index, column=col_index).value
-                if cell_value == "none":
-                    ws.cell(row=row_index, column=col_index).fill = yellow_fill
+        # Поиск строки с заголовками
+        for row in ws.iter_rows(min_row=1, max_row=50):
+            values = [str(cell.value).strip().lower() if cell.value else '' for cell in row]
+            match_count = sum(1 for val in values if val in normalized_headers)
 
-        wb.save(excel_path)
+            if match_count >= len(headers) - 2:
+                header_row = row[0].row
+                for i, val in enumerate(values):
+                    if val in normalized_headers:
+                        header_map[val] = i + 1
+                break
+
+        if not header_row:
+            raise ValueError("Не найдена строка с заголовками")
+
+        # Поиск первой пустой строки
+        next_row = header_row + 1
+        while ws.cell(row=next_row, column=header_map.get("подразделение", 2)).value:
+            next_row += 1
+
+        # Обработка и запись значений
+        for header in headers:
+            key = header.strip().lower()
+            col = header_map.get(key)
+            if not col:
+                continue
+
+            # Получаем значение из словаря
+            value = message_dict.get(header, "")
+
+            # Обработка даты: если нет — подставляем и помечаем
+            if header == "Дата" and not value:
+                value = date_value
+                fill = yellow_fill
+            elif value in [None, ""]:
+                fill = yellow_fill
+            else:
+                fill = None
+
+            # Запись в ячейку
+            cell = ws.cell(row=next_row, column=col, value=value)
+            if fill:
+                cell.fill = fill
+
+        wb.save(filepath)

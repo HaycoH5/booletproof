@@ -21,10 +21,10 @@ class LLMProcess:
 
         # Название модели, указывается в конфиге
         self.model_name = LLM_config.model_name
+        self.api_key = LLM_config.api_key
 
         # Размер тестовой выборки
         self.TEST_SIZE = LLM_config.TEST_SIZE
-        self.BATCH_SIZE = LLM_config.BATCH_SIZE
 
         # Определяем директорию текущего скрипта
         self.SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -32,26 +32,16 @@ class LLMProcess:
         self.LOGS_DIR = os.path.join(self.SCRIPT_DIR, "logs")  # Путь к логам
 
         # Настройка логирования
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler(
-                    os.path.join(self.LOGS_DIR, f'processing_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')),
-                logging.StreamHandler()
-            ]
-        )
-        self.logger = logging.getLogger(__name__)
-
-
-    def get_api_key(self):
-        """Получение API-ключа из переменной окружения или через ввод пользователя"""
-
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            api_key = getpass.getpass("Введи ваш VseGPT ключ API:")
-            os.environ["OPENAI_API_KEY"] = api_key
-        return api_key
+        # logging.basicConfig(
+        #     level=logging.INFO,
+        #     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        #     handlers=[
+        #         logging.FileHandler(
+        #             os.path.join(self.LOGS_DIR, f'processing_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')),
+        #         logging.StreamHandler()
+        #     ]
+        # )
+        # self.logger = logging.getLogger(__name__)
 
 
     def read_instruction_file(self):
@@ -59,11 +49,13 @@ class LLMProcess:
 
         try:
             instruction_path = os.path.join(self.DATA_DIR, "instruction.json")
+
             with open(instruction_path, 'r', encoding='utf-8') as f:
                 instruction_data = json.load(f)
             return instruction_data
+
         except Exception as e:
-            self.logger.error(f"Ошибка при чтении файла инструкции: {e}")
+            #self.logger.error(f"Ошибка при чтении файла инструкции: {e}")
             raise
 
 
@@ -197,13 +189,13 @@ class LLMProcess:
                 # Заменяем None и "N/A" на пустую строку
                 for result in parsed_results:
                     for key in result:
-                        if result[key] is None or result[key] == "N/A":
-                            result[key] = ""
+                        if result[key] is None:
+                            result[key] = "N/A"
 
                 return parsed_results
 
             except json.JSONDecodeError as e:
-                self.logger.error(f"Ошибка при разборе JSON: {e}")
+                #self.logger.error(f"Ошибка при разборе JSON: {e}")
 
                 try:
                     import re
@@ -228,7 +220,7 @@ class LLMProcess:
                 }]
 
         except Exception as e:
-            self.logger.error(f"Ошибка при запросе к API: {e}")
+            #self.logger.error(f"Ошибка при запросе к API: {e}")
             return [{
                 "Дата": "",
                 "Подразделение": "",
@@ -238,15 +230,15 @@ class LLMProcess:
                 "С начала операции, га": "",
                 "Вал за день, ц": "",
                 "Вал с начала, ц": "",
-                "Исходное сообщение": messages[0] if messages else ""
+                "Исходное сообщение": messages if messages else ""
             }]
 
-    def process_agro_messages(self, messages: List[str], batch_size: int = 1, save_to_excel: bool = False,
+    def process_agro_messages(self, messages: List[str], save_to_excel: bool = False,
                               output_path: Optional[str] = None) -> pd.DataFrame:
         """Обработка списка агросообщений, сохранение результата в DataFrame (и опционально — Excel)"""
 
         # Получаем ключ API и инициализируем клиент
-        api_key = self.get_api_key()
+        api_key = self.api_key
         client = OpenAI(
             api_key=api_key,
             base_url="https://api.vsegpt.ru/v1",
@@ -258,19 +250,13 @@ class LLMProcess:
         # Создаем системный промпт
         system_prompt = self.create_system_prompt(instruction_data)
 
-        self.logger.info(f"Всего сообщений для обработки: {len(messages)}")
+        #self.logger.info(f"Всего сообщений для обработки: {len(messages)}")
 
-        all_results = []
 
         # Обработка сообщений по батчам
-        for i in range(0, len(messages), batch_size):
-            batch = messages[i:i + batch_size]
-            self.logger.info(
-                f"Обработка батча {i // batch_size + 1} из {(len(messages) + batch_size - 1) // batch_size}...")
-            batch_results = self.process_messages_batch(batch, system_prompt, client)
-            all_results.extend(batch_results)
 
-            self.logger.info(f"Найдено операций в батче: {len(batch_results)}")
+        batch_results = self.process_messages_batch(messages, system_prompt, client)
+
 
         # Создаем финальный DataFrame
         columns = [
@@ -285,47 +271,31 @@ class LLMProcess:
             "Исходное сообщение"
         ]
 
-        results_df = pd.DataFrame(all_results, columns=columns)
+        results_df = pd.DataFrame(batch_results, columns=columns)
 
-        # Сохраняем в Excel при необходимости
-        if save_to_excel:
-            if output_path is None:
-                output_path = os.path.join(self.LOGS_DIR,
-                                           f"result_table_{self.model_name.replace('/', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx")
+        #self.logger.info(f"Обработка завершена! Всего найдено операций: {len(batch_results)}")
 
-            results_df.to_excel(output_path, index=False)
-            self.logger.info(f"Результаты сохранены в файл: {output_path}")
-
-        self.logger.info(f"Обработка завершена! Всего найдено операций: {len(all_results)}")
-
-        return results_df
+        return batch_results
 
 
-    def start(self, append_to_excel):
+    def process_messages(self, append_to_excel, message):
         """Основной запуск для тестирования скрипта"""
         try:
-            # Загружаем сообщения из Excel
-            messages_df = pd.read_excel(
-                os.path.join(self.DATA_DIR, "messages.xlsx"),
-                engine='openpyxl'
-            )
+            # # Загружаем сообщения из Excel
+            # messages_df = pd.read_excel(
+            #     os.path.join(self.DATA_DIR, "messages.xlsx"),
+            #     engine='openpyxl'
+            # )
 
-            # Извлекаем колонку с текстами сообщений
-            all_messages = messages_df['Данные для тренировки'].dropna().tolist()
-
-            # Выбираем случайные сообщения
-            test_size = self.TEST_SIZE
-            test_messages = random.sample(all_messages, min(test_size, len(all_messages)))
 
             # Обрабатываем сообщения
             results_df = self.process_agro_messages(
-                messages=test_messages,
-                batch_size=self.BATCH_SIZE,
+                messages=message,
                 save_to_excel=True
             )
 
-            append_to_excel(results_df)
-
+            #append_to_excel(results_df)
+            return results_df
         except Exception as e:
-            self.logger.error(f"Ошибка в основной функции: {e}")
+            #self.logger.error(f"Ошибка в основной функции: {e}")
             raise
