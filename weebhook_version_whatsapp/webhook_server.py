@@ -10,7 +10,7 @@ import config
 
 app = Flask(__name__)
 
-data_save = DataSave(config.base_dir)
+data_save = DataSave(config.BASE_DIR, config.EXEL_TABLE_BASE_NAME)
 LLM_Process = LLMProcess()
 
 
@@ -59,7 +59,7 @@ def webhook():
 
     print(data)
     data_save.save_to_txt(data)
-    print(LLM_Process.process_messages(data_save.append_to_excel, data["content"]))
+    print(LLM_Process.process_messages(data_save.append_message_to_table, data["content"], config.EXEL_TABLE_DIR, data["timestamp"]))
     return jsonify({'status': 'ok'})
 
 

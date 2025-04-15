@@ -278,7 +278,7 @@ class LLMProcess:
         return batch_results
 
 
-    def process_messages(self, append_to_excel, message):
+    def process_messages(self, append_to_excel, message, exel_path, date):
         """Основной запуск для тестирования скрипта"""
         try:
             # # Загружаем сообщения из Excel
@@ -294,7 +294,7 @@ class LLMProcess:
                 save_to_excel=True
             )
 
-            #append_to_excel(results_df)
+            append_to_excel(filepath=exel_path, message_dict=results_df[0], date_value=date)
             return results_df
         except Exception as e:
             #self.logger.error(f"Ошибка в основной функции: {e}")

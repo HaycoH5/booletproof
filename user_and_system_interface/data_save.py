@@ -6,9 +6,12 @@ from openpyxl.styles import Font, PatternFill, Alignment
 class DataSave:
     """Сохраняет данные формата JSON в различные форматы"""
 
-    def __init__(self, base_dir):
+    def __init__(self, base_dir, base_table):
         """init"""
         self.base_dir = base_dir
+
+        self.current_table_name = base_table
+
         self.headers = [
             "Дата", "Подразделение", "Операция", "Культура",
             "За день, га", "Начала операции", "Вал за день, ц", "Вал с начала, ц"
@@ -16,6 +19,9 @@ class DataSave:
 
         os.makedirs(base_dir, exist_ok=True)
 
+    def current_data(self):
+        now = datetime.now()
+        return now.strftime("%H%d%m%Y")  #
 
     def convert_iso_to_custom_format(self, iso_string):
         """Преобразует ISO-дату в формат: Минута_Час_День_Месяц_Год"""
@@ -48,7 +54,7 @@ class DataSave:
         """
         Добавляет строку в таблицу Excel. Пустые значения, включая автоподставленную дату, выделяются жёлтым.
         """
-        wb = load_workbook(filepath)
+        wb = load_workbook(filepath + self.current_table_name)
         ws = wb.active
 
         headers = ["Дата", "Подразделение", "Операция", "Культура",
@@ -105,4 +111,6 @@ class DataSave:
             if fill:
                 cell.fill = fill
 
-        wb.save(filepath)
+        self.current_table_name = self.current_data() + "_BooletProof" + ".xlsx"
+        print(filepath + self.current_table_name)
+        wb.save(filepath + self.current_table_name)
