@@ -110,7 +110,9 @@ class DataSave:
             cell = ws.cell(row=next_row, column=col, value=value)
             if fill:
                 cell.fill = fill
-
-        self.current_table_name = self.current_data() + "_BooletProof" + ".xlsx"
-        print(filepath + self.current_table_name)
         wb.save(filepath + self.current_table_name)
+        new_table_name = self.current_data() + "_BooletProof" + ".xlsx"
+        os.rename(filepath + self.current_table_name, filepath + new_table_name)
+        self.current_table_name = new_table_name
+
+
