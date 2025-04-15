@@ -53,6 +53,7 @@ ENV/
 
 # Logs
 *.log
+*.txt
 
 # Local development settings
 .env.local

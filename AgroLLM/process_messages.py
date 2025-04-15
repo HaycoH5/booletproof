@@ -61,7 +61,7 @@ class LLMProcess:
 
     def create_system_prompt(self, instruction_data: Dict) -> str:
         """Создание системного промпта на основе инструкции"""
-
+        
         examples = instruction_data.get("примеры_обработки", [])
         extra_info_text = ""
 
@@ -106,11 +106,22 @@ class LLMProcess:
 
     Reference information for parsing:
     {extra_info_text}
-    
+
     IMPORTANT: When filling the "Подразделение" field, use the table "Принадлежность отделений и ПУ" from the reference information above to determine the correct department name. For example, if you see "Отд 11", look up which "ПУ" it belongs to in the reference table and use that as the "Подразделение" value.
-    
+
+    IMPORTANT: The department name can be specified with the prefix "ПУ" (e.g., "ПУ Восход") or without it (just "Восход"). In both cases, it is the same department. If the message specifies a department name without the "ПУ" prefix, still use it as the full department name.
+
+    IMPORTANT: When you see "Многолетние травы" in the message, ALWAYS use the full name "Многолетние травы текущего года" in the "Культура" field.
+
+    IMPORTANT: For "Вал" values (both "Вал за день, ц" and "Вал с начала, ц"), be aware that decimal points are often omitted in messages. For example, if you see "37400", it likely means "374.00". If a value seems unusually large (more than 10000), consider that it might be missing a decimal point. In such cases, add a decimal point before the last two digits.
+
+    IMPORTANT: For the "Операция" field, you MUST use EXACTLY the operation name from the "Операции" table in the reference information. Do not use variations or abbreviations. For example, if the message says "Посев", but the correct operation in the table is "Сев", you should use "Сев". If you're unsure which operation to choose, carefully analyze the message and select the most appropriate one from the table.
+
+    IMPORTANT: For numeric fields (like "За день, га", "С начала операции, га", "Вал за день, ц", "Вал с начала, ц"), if you cannot extract a value, use an empty string ("") instead of null or "N/A". Never return null values for these fields.
+
+    Examples of message processing:
     {examples_text}
-    
+
     I will provide you with messages. Each message might contain one or multiple operations.
     Please analyze each message and extract the following information for each operation:
     1. Дата (Date) - if specified for the whole message, use it for all operations
@@ -121,7 +132,7 @@ class LLMProcess:
     6. С начала операции, га (Total area since operation start, hectares) - second number in pairs like "41/501"
     7. Вал за день, ц (Yield per day, centners)
     8. Вал с начала, ц (Total yield since operation start, centners)
-    
+
     Format your response as a JSON array, where each element represents one operation:
     [
         {{
@@ -129,14 +140,14 @@ class LLMProcess:
             "Подразделение": "ПУ \\"Север\\"",
             "Операция": "Сев",
             "Культура": "Сахарная свекла",
-            "За день, га": "73",
-            "С начала операции, га": "170",
+            "За день, га": "85",
+            "С начала операции, га": "210",
             "Вал за день, ц": "",
             "Вал с начала, ц": "",
         }},
         // more operations if present in the message
     ]
-    
+
     Important notes:
     1. If you can't extract some values, leave them empty (empty string). Never return null or "N/A".
     2. For each operation, include ALL relevant context in the "Исходное сообщение" field, even if it's shared between multiple operations.
@@ -146,6 +157,7 @@ class LLMProcess:
        - "подс" = "Подсолнечник"
        - "оз п" = "Озимая пшеница"
        - "кук" = "Кукуруза"
+       - "мн тр" or "многол трав" = "Многолетние травы текущего года"
     5. Common operation abbreviations:
        - "пах" = "Пахота"
        - "диск" = "Дискование"
@@ -153,8 +165,35 @@ class LLMProcess:
        - "предп культ" = "Предпосевная культивация"
        - "сев" = "Сев"
     6. When an operation has a total for "ПоПу" (or "По пу") and then individual department values, create separate entries for each department.
-    7. ALWAYS use the "Принадлежность отделений и ПУ" table to determine the correct ПУ name for each department number."""
+    7. ALWAYS use the "Принадлежность отделений и ПУ" table to determine the correct ПУ name for each department number.
+    8. When you see a value like "152га" or "97га", extract both numbers for "За день, га" and "С начала операции, га" fields. For example, from "152га" extract "152" for both fields.
+    9. When you see a percentage like "100%" or "50%", this indicates the completion percentage of the operation, but you should still extract the area values.
 
+    ВАЖНО: При обработке сообщений с детализацией по отделениям (например, "Отд 11-307/307", "Отд 12-671/671" и т.д.):
+
+    10. Если в сообщении указано общее значение для подразделения (ПУ) и затем детализация по отделениям, 
+        ВСЕГДА используйте ТОЛЬКО общее значение для подразделения и игнорируйте детализацию по отделениям.
+        
+    11. Пример: "2-я подкормка озимых, ПУ "Юг" - 1850/2700 (в т.ч Амазон-1150/1450, Пневмоход-700/1250)
+        Отд11- 307/307 (амазон 307/307) 
+        Отд 12- 671/671( амазон 318/318; пневмоход 353/353)"
+        
+        В этом случае нужно создать ТОЛЬКО ОДНУ запись для ПУ "Юг" со значениями 1850/2700, 
+        а НЕ создавать отдельные записи для каждого отделения.
+        
+    12. Если в сообщении указано только детализация по отделениям без общего значения для подразделения,
+        суммируйте значения всех отделений и создайте ОДНУ запись для соответствующего подразделения.
+        
+    13. Пример: "Внесение мин удобрений под оз пшеницу 2025 г ПУ Юг 165/7800
+        Отд 17-165/1550"
+        
+        В этом случае нужно создать ОДНУ запись для ПУ "Юг" со значениями 165/7800,
+        а НЕ создавать отдельную запись для Отд 17.
+        
+    14. Помните: ваша задача - создать записи на уровне подразделения (ПУ), а не на уровне отделений.
+        Детализация по отделениям предоставляется только для информационных целей и не должна
+        приводить к созданию отдельных записей в результатах."""
+        
         return system_prompt
 
 
@@ -186,11 +225,14 @@ class LLMProcess:
                 if not isinstance(parsed_results, list):
                     parsed_results = [parsed_results]
 
-                # Заменяем None и "N/A" на пустую строку
+                # Заменяем None и "N/A" на пустую строку и нормализуем числовые значения
                 for result in parsed_results:
                     for key in result:
-                        if result[key] is None:
-                            result[key] = "N/A"
+                        if result[key] is None or result[key] == "N/A":
+                            result[key] = ""
+                        elif key in ["За день, га", "С начала операции, га", "Вал за день, ц", "Вал с начала, ц"]:
+                            # Нормализуем числовые значения
+                            result[key] = self._normalize_numeric_value(result[key])
 
                 return parsed_results
 
@@ -232,6 +274,49 @@ class LLMProcess:
                 "Вал с начала, ц": "",
                 "Исходное сообщение": messages if messages else ""
             }]
+            
+    def _normalize_numeric_value(self, value):
+        """Нормализует числовые значения для корректного сравнения.
+        
+        Args:
+            value: Значение для нормализации
+            
+        Returns:
+            str: Нормализованное значение
+        """
+        if value is None or value == "":
+            return ""
+        
+        # Преобразуем в строку, если это не строка
+        if not isinstance(value, str):
+            value = str(value)
+        
+        # Заменяем запятые на точки для десятичных чисел
+        value = value.replace(',', '.')
+        
+        # Удаляем лишние пробелы
+        value = value.strip()
+        
+        # Проверяем, является ли значение числом
+        try:
+            # Пробуем преобразовать в float
+            float_value = float(value)
+            
+            # Проверяем, не является ли значение слишком большим (возможно, пропущена десятичная точка)
+            if float_value > 1000000:  # Если значение больше миллиона
+                # Проверяем, не является ли это значением с пропущенной десятичной точкой
+                # Например, 1259680 может быть 12596.80
+                if '.' not in value and len(value) > 6:
+                    # Добавляем десятичную точку перед последними двумя цифрами
+                    value = value[:-2] + '.' + value[-2:]
+                    # Преобразуем обратно в float и форматируем
+                    float_value = float(value)
+            
+            # Форматируем число с двумя знаками после запятой
+            return f"{float_value:.2f}"
+        except ValueError:
+            # Если не удалось преобразовать в число, возвращаем исходное значение
+            return value
 
     def process_agro_messages(self, messages: List[str], save_to_excel: bool = False,
                               output_path: Optional[str] = None) -> pd.DataFrame:
