@@ -30,16 +30,17 @@ class DataSave:
 
     def save_to_txt(self, data):
         """Сохраняет данные в .txt файл"""
+
         sender = data["from"]
         timestamp = data["timestamp"]
         content = data["content"]
 
         message_num = self._get_next_message_number(sender)
         timestamp_str = self.convert_iso_to_custom_format(timestamp)
-        file_name = f"{sender}{message_num}_{timestamp_str}.txt"
-        file_path = os.path.join(self.base_dir, file_name)
-
-        with open(file_path, 'a', encoding='utf-8') as file:
+        file_name = f"{sender}_{message_num}_{timestamp_str}.txt"
+        #file_path = os.path.join(self.base_dir, file_name)
+        file_path = self.base_dir + "/" + file_name
+        with open(file_path, 'w', encoding='utf-8') as file:
             file.write(content + '\n')
 
 

@@ -9,7 +9,7 @@ import random
 import logging
 from datetime import datetime
 
-import LLM_config
+from AgroLLM import LLM_config
 
 
 class LLMProcess:

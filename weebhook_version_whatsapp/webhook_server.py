@@ -11,7 +11,7 @@ import config
 app = Flask(__name__)
 
 data_save = DataSave(config.base_dir)
-LLM_Process = LLMProcess()
+#LLM_Process = LLMProcess()
 
 
 # Базовая директория для хранения данных
@@ -57,8 +57,10 @@ def webhook():
         data['media_path'] = str(media_path.relative_to(user_dir))
         data.pop('media_data')  # Удаляем большие бинарные данные
 
-        data_save.save_to_txt(data)
-        LLM_Process.start(data_save.append_to_excel)
+        #LLM_Process.start(data_save.append_to_excel)
+    data_save.save_to_txt(data)
+    return jsonify({'status': 'ok'})
+
 
 if __name__ == '__main__':
     # Запуск приложения в режиме отладки (для разработки)
