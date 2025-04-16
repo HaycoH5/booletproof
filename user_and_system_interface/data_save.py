@@ -88,7 +88,7 @@ class DataSave:
         next_row = header_row + 1
         while ws.cell(row=next_row, column=header_map.get("подразделение", 2)).value:
             next_row += 1
-
+        
         # Заполнение новой строки
         for header in headers:
             key = header.strip().lower()
@@ -110,11 +110,7 @@ class DataSave:
             if fill:
                 cell.fill = fill
 
-        wb.save(full_path)
-
-        # Переименование файла
-        new_table_name = f"{self.current_data()}_BulletProof.xlsx"
-        new_full_path = os.path.join(filepath, new_table_name)
-        os.rename(full_path, new_full_path)
+        new_table_name = full_path.replace("template.xlsx", f"{self.current_data()}_BulletProof.xlsx")
+        wb.save(new_table_name)
 
         self.current_table_name = new_table_name

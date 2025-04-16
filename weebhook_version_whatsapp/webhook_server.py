@@ -2,9 +2,13 @@ from flask import Flask, request, jsonify
 from datetime import datetime, timezone
 from pathlib import Path
 import os
+import sys
 
-from AgroLLM.process_messages import LLMProcess
-from user_and_system_interface.data_save import DataSave
+sys.path.append(os.path.join(os.path.dirname(__file__), '../AgroLLM'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '../user_and_system_interface'))
+
+from process_messages import LLMProcess
+from data_save import DataSave
 
 import config
 
@@ -56,7 +60,7 @@ def webhook():
         data.pop('media_data', None)
 
     # Сохраняем данные
-    print(data)
+    # print(data)
     data_save.save_to_txt(data)
 
     # Обработка сообщений через LLM
@@ -66,7 +70,7 @@ def webhook():
         config.EXEL_TABLE_DIR,
         data.get("timestamp", "")
     )
-    print(response)
+    # print(response)
 
     return jsonify({'status': 'ok'})
 

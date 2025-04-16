@@ -8,8 +8,10 @@ import getpass
 import random
 import logging
 from datetime import datetime
+import sys
 
-from AgroLLM import LLM_config
+sys.path.append(os.path.join(os.path.dirname(__file__), '../AgroLLM'))
+import LLM_config
 
 
 class LLMProcess:
@@ -339,9 +341,14 @@ class LLMProcess:
 
 
         # Обработка сообщений по батчам
-
+        print(messages)
         batch_results = self.process_messages_batch(messages, system_prompt, client)
 
+        print(batch_results)
+
+        # result_df = pd.DataFrame(batch_results)
+
+        # result_df.to_excel("test_results/16_04_xlsx", index=False)
 
         # Создаем финальный DataFrame
         columns = [
@@ -380,6 +387,7 @@ class LLMProcess:
             )
 
             append_to_excel(filepath=exel_path, message_dict=results_df[0], date_value=date)
+            # print(results_df)
             return results_df
         except Exception as e:
             #self.logger.error(f"Ошибка в основной функции: {e}")

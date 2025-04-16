@@ -6,8 +6,8 @@
 3. pip install flask
 
 Запуск
-1. Запустить фласк сервер (python файл)
-2. Запустить index.js - "node index.js"
+1. Запустить index.js - "node index.js"
+2. Запустить фласк сервер (python файл)
 3. Сканировать qr код и отправлять сообщения. Сохранение в папку agro_data
 
 
