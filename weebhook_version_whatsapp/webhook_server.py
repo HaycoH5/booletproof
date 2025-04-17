@@ -1,52 +1,56 @@
+# weebhook_version_whatsapp/webhook_server.py
+
 from flask import Flask, request, jsonify
 from datetime import datetime, timezone
 from pathlib import Path
 import os
 import sys
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '../AgroLLM'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '../user_and_system_interface'))
-
-from process_messages import LLMProcess
-from data_save import DataSave
+# чтобы найти ваш пакет AgroLLM
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(ROOT_DIR)
 
 import config
+from AgroLLM.message_router import MessageRouter
+from user_and_system_interface.data_save import DataSave
 
 app = Flask(__name__)
 
-# Инициализация компонентов
-data_save = DataSave(config.BASE_DIR, config.EXEL_TABLE_BASE_NAME)
-llm_process = LLMProcess()
+# точка входа в LLM- и в image‑процессоры
+router = MessageRouter()
 
-# Базовая директория для хранения данных
+# хелпер для логирования текстовых сообщений и инициализации Excel
+data_save = DataSave(config.BASE_DIR, config.EXEL_TABLE_BASE_NAME)
+
+# **Создаём папку для текстовых логов**, чтобы save_to_txt не падал
+text_log_dir = Path(config.BASE_DIR) / 'txt_messages'
+text_log_dir.mkdir(parents=True, exist_ok=True)
+
+# корневая папка для входящих агроданных
 BASE_DIR = Path('agro_data')
 
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    """
-    Обработчик входящих данных с вебхука.
-    Сохраняет текстовые сообщения и медиафайлы в директории:
-    agro_data/{номер_телефона}/{дата}/
-    """
     data = request.get_json()
-
     if not data or 'from' not in data:
         return jsonify({'error': 'Invalid data: missing "from" field'}), 400
 
     phone = data['from']
     date_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
 
-    # Создание директорий для пользователя и медиафайлов
+    # создаём папки agro_data/{phone}/{date}/media
     user_dir = BASE_DIR / phone / date_str
     media_dir = user_dir / 'media'
-    os.makedirs(media_dir, exist_ok=True)
+    media_dir.mkdir(parents=True, exist_ok=True)
 
-    # Обработка медиафайлов
+    result = None
+
+    # ── MEDIA ───────────────────────────────────────────────────────────
     if data.get('type') == 'media' and 'media_data' in data:
         ext = data.get('ext', 'bin')
-        timestamp = int(datetime.utcnow().timestamp())
-        media_filename = f'media_{timestamp}.{ext}'
+        ts = int(datetime.now(timezone.utc).timestamp())
+        media_filename = f"media_{ts}.{ext}"
         media_path = media_dir / media_filename
 
         try:
@@ -55,24 +59,43 @@ def webhook():
         except ValueError:
             return jsonify({'error': 'Invalid media_data format'}), 400
 
-        # Удаление данных медиа и сохранение относительного пути
-        data['media_path'] = str(media_path.relative_to(user_dir))
+        # чистим payload и сохраняем относительный путь
         data.pop('media_data', None)
+        data['media_path'] = str(media_path.relative_to(user_dir))
 
-    # Сохраняем данные
-    # print(data)
-    data_save.save_to_txt(data)
+        result = router.handle(
+            msg_type="media",
+            payload={
+                "paths": [str(media_path)],
+                "prompt": (
+                    "На этой фотографии должна быть таблица. "
+                    "Перепиши все столбики с их значениями. "
+                    "Ответ — только JSON, только русский текст и цифры."
+                ),
+            },
+            meta={
+                "append_to_excel": data_save.append_message_to_table,
+                "excel_path": config.EXEL_TABLE_DIR,
+                "date": data.get("timestamp", "")
+            }
+        )
 
-    # Обработка сообщений через LLM
-    response = llm_process.process_messages(
-        data_save.append_message_to_table,
-        data.get("content", ""),
-        config.EXEL_TABLE_DIR,
-        data.get("timestamp", "")
-    )
-    # print(response)
+    # ── TEXT ────────────────────────────────────────────────────────────
+    else:
+        # логируем текстовое сообщение (папка уже создана выше)
+        data_save.save_to_txt(data)
 
-    return jsonify({'status': 'ok'})
+        result = router.handle(
+            msg_type="text",
+            payload={"content": data.get("content", "")},
+            meta={
+                "append_to_excel": data_save.append_message_to_table,
+                "excel_path": config.EXEL_TABLE_DIR,
+                "date": data.get("timestamp", "")
+            }
+        )
+
+    return jsonify({'status': 'ok', 'result': result})
 
 
 if __name__ == '__main__':

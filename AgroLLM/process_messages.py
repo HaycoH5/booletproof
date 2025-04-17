@@ -10,8 +10,8 @@ import logging
 from datetime import datetime
 import sys
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '../AgroLLM'))
-import LLM_config
+# Убираем циклический импорт и используем абсолютный путь
+from AgroLLM.LLM_config import chat_model_name, TEST_SIZE, api_key
 
 
 class LLMProcess:
@@ -22,11 +22,11 @@ class LLMProcess:
         """Инициализация параметров и конфигураций"""
 
         # Название модели, указывается в конфиге
-        self.model_name = LLM_config.model_name
-        self.api_key = LLM_config.api_key
+        self.model_name = chat_model_name
+        self.api_key = api_key
 
         # Размер тестовой выборки
-        self.TEST_SIZE = LLM_config.TEST_SIZE
+        self.TEST_SIZE = TEST_SIZE
 
         # Определяем директорию текущего скрипта
         self.SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -195,11 +195,11 @@ class LLMProcess:
         """Обработка батча сообщений с помощью API"""
 
         # Объединяем сообщения в один текст с разделителями
-        batch_text = "\n\n=== NEXT MESSAGE ===\n\n".join(messages)
+        #batch_text = "\n\n=== NEXT MESSAGE ===\n\n".join(messages)
 
         messages_for_api = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": batch_text}
+            {"role": "user", "content": messages}
         ]
 
         try:
