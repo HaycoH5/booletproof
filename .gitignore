@@ -40,6 +40,7 @@ ENV/
 # Data files
 *.csv
 *.xlsx
+*.xlsx#
 *.xls
 *.db
 *.sqlite3
@@ -53,9 +54,16 @@ ENV/
 
 # Logs
 *.log
+*.txt
 
 # Local development settings
 .env.local
 .env.development.local
 .env.test.local
-.env.production.local 
+.env.production.local
+
+node_modules/
+.wwebjs_cache/
+
+weebhook_version_whatsapp/package-lock.json
+weebhook_version_whatsapp/package.json

@@ -8,8 +8,10 @@ import getpass
 import random
 import logging
 from datetime import datetime
+import sys
 
-from AgroLLM import LLM_config
+sys.path.append(os.path.join(os.path.dirname(__file__), '../AgroLLM'))
+import LLM_config
 
 
 class LLMProcess:
@@ -61,7 +63,7 @@ class LLMProcess:
 
     def create_system_prompt(self, instruction_data: Dict) -> str:
         """Создание системного промпта на основе инструкции"""
-
+        
         examples = instruction_data.get("примеры_обработки", [])
         extra_info_text = ""
 
@@ -90,71 +92,102 @@ class LLMProcess:
 
         # Форматирование примеров
         examples_text = ""
-        for i, example in enumerate(examples[:3], 1):  # Use first 3 examples
+        for i, example in enumerate(examples, 1):
             message = example.get("Сообщение", "")
             data = example.get("Данные", [])
 
-            examples_text += f"\nExample {i}:\n```\n{message}\n```\n\n"
+            examples_text += f"\nПример {i}:\n```\n{message}\n```\n\n"
 
             if data:
-                examples_text += "Should be parsed into:\n"
+                examples_text += "Обработанные данные:\n"
                 for item in data:
                     examples_text += f"- {item}\n"
                 examples_text += "\n"
 
-        system_prompt = f"""You are an expert in parsing agricultural messages. Your task is to extract structured information from messages.
+        system_prompt = f"""Ты - эксперт по обработке агросообщений. Твоя задача - извлекать структурированную информацию из сообщений.
 
-    Reference information for parsing:
-    {extra_info_text}
-    
-    IMPORTANT: When filling the "Подразделение" field, use the table "Принадлежность отделений и ПУ" from the reference information above to determine the correct department name. For example, if you see "Отд 11", look up which "ПУ" it belongs to in the reference table and use that as the "Подразделение" value.
-    
-    {examples_text}
-    
-    I will provide you with messages. Each message might contain one or multiple operations.
-    Please analyze each message and extract the following information for each operation:
-    1. Дата (Date) - if specified for the whole message, use it for all operations
-    2. Подразделение (Department/Unit) - Use the "Принадлежность отделений и ПУ" table to determine the correct ПУ name for each department
-    3. Операция (Operation type) - the main agricultural operation being performed
-    4. Культура (Crop) - if specified once for multiple operations, use it for all related operations
-    5. За день, га (Area per day, hectares) - first number in pairs like "41/501"
-    6. С начала операции, га (Total area since operation start, hectares) - second number in pairs like "41/501"
-    7. Вал за день, ц (Yield per day, centners)
-    8. Вал с начала, ц (Total yield since operation start, centners)
-    
-    Format your response as a JSON array, where each element represents one operation:
-    [
-        {{
-            "Дата": "",
-            "Подразделение": "ПУ \\"Север\\"",
-            "Операция": "Сев",
-            "Культура": "Сахарная свекла",
-            "За день, га": "73",
-            "С начала операции, га": "170",
-            "Вал за день, ц": "",
-            "Вал с начала, ц": "",
-        }},
-        // more operations if present in the message
-    ]
-    
-    Important notes:
-    1. If you can't extract some values, leave them empty (empty string). Never return null or "N/A".
-    2. For each operation, include ALL relevant context in the "Исходное сообщение" field, even if it's shared between multiple operations.
-    3. Make sure to properly escape newlines (\\n) and quotes (\") in the "Исходное сообщение" field.
-    4. Pay attention to abbreviated crop names:
-       - "св" or "с. св" = "Сахарная свекла"
-       - "подс" = "Подсолнечник"
-       - "оз п" = "Озимая пшеница"
-       - "кук" = "Кукуруза"
-    5. Common operation abbreviations:
-       - "пах" = "Пахота"
-       - "диск" = "Дискование"
-       - "культ" = "Культивация"
-       - "предп культ" = "Предпосевная культивация"
-       - "сев" = "Сев"
-    6. When an operation has a total for "ПоПу" (or "По пу") and then individual department values, create separate entries for each department.
-    7. ALWAYS use the "Принадлежность отделений и ПУ" table to determine the correct ПУ name for each department number."""
+АЛГОРИТМ ОБРАБОТКИ ДАТЫ (САМОЕ ВАЖНОЕ - ВЫПОЛНЯТЬ В ПЕРВУЮ ОЧЕРЕДЬ):
+1. Перед любой другой обработкой, ВСЕГДА проверяй первую строку сообщения.
+2. Если эта строка содержит ТОЛЬКО числа с точкой между ними (например, "11.09", "12.10", "6.05") - ЭТО ДАТА в формате ДД.ММ.
+3. Если строка выглядит как "11.09", "12.10", "13.08" и т.д. - это дата в формате ДД.ММ без года.
+4. При обнаружении даты в таком формате, ОБЯЗАТЕЛЬНО добавь ее в поле "Дата" в формате "дд.мм.гггг".
+5. НИКОГДА не оставляй поле даты пустым, если в сообщении есть строки вида "11.09", "6.05", "24.12" и т.п.
 
+ПРИМЕРЫ ВЫДЕЛЕНИЯ ДАТЫ:
+- Если первая строка сообщения: "11.09" → Дата = "11.09.2025"
+- Если первая строка сообщения: "6.05" → Дата = "06.05.2025"
+- Если первая строка сообщения: "13.08" → Дата = "13.08.2025"
+
+Справочная информация:
+{extra_info_text}
+
+ВАЖНО: Примеры приведены только для демонстрации формата обработки. Не используй никакие данные из примеров при обработке реальных сообщений. Извлекай информацию ТОЛЬКО из текста самого сообщения:
+
+1. Дата - ОБЯЗАТЕЛЬНО извлекать, если она указана в первой строке сообщения в формате ЧЧ.ЧЧ
+2. Подразделение - берется из сообщения и строго по справочнику 
+3. Операция - берется из сообщения и строго по справочнику
+4. Культура - берется из сообщения и строго по справочнику
+5. Числовые значения - только из текста сообщения
+
+ДОПОЛНИТЕЛЬНО ПРО ДАТЫ:
+- Дата ПОЧТИ ВСЕГДА указывается в первой строке сообщения
+- Дата может быть в форматах: дд.мм, д.мм, дд.м или д.м (например: 11.09, 6.05, 13.8, 1.2)
+- Другие форматы даты: дд.мм.гггг, дд.мм.ггг. (например: 30.03.25г., 29.06.2025)
+- Иногда после даты может быть слово "день" (например: 24.12 день)
+- Если год не указан явно, используй 2025
+- Первая строка сообщения, содержащая только числа с точкой - это ВСЕГДА дата
+
+ЖЕСТКИЕ ПРАВИЛА:
+- Если ты вообще не видишь какой-либо информации в сообщении, то в соответствующем поле должна быть пустая строка.
+- Никогда не подставляй даты или другие данные из примеров
+- Используй только ту информацию, которая есть в текущем обрабатываемом сообщении
+
+Основные правила:
+1. Название подразделения может быть с префиксом "ПУ" или без него
+2. "Многолетние травы" = "Многолетние травы текущего года"
+3. В значениях "Вал" часто пропущена десятичная точка перед последними двумя цифрами (37480 = 374.8 или 264491 = 2644.91)
+4. Используй точные названия операций из справочника
+5. Пустые значения = пустая строка (""), не null и не "N/A"
+
+Примеры обработки:
+{examples_text}
+
+Формат ответа - JSON-массив:
+[
+    {{
+        "Дата": "дд.мм.гггг",
+        "Подразделение": "ПУ \\"Север\\"",
+        "Операция": "Сев",
+        "Культура": "Сахарная свекла",
+        "За день, га": "85",
+        "С начала операции, га": "210",
+        "Вал за день, ц": "xxx.xx",
+        "Вал с начала, ц": "xxxx.xx"
+    }}
+]
+
+Примеры сокращений (могут быть и другие):
+- "св" или "с. св" = "Сахарная свекла"
+- "подс" = "Подсолнечник"
+- "оз п" = "Озимая пшеница"
+- "кук" = "Кукуруза"
+- "мн тр" или "многол трав" = "Многолетние травы текущего года"
+- "пах" = "Пахота"
+- "диск" = "Дискование"
+- "культ" = "Культивация"
+- "предп культ" = "Предпосевная культивация"
+- "сев" = "Сев"
+
+Обработка детализации по отделениям:
+1. Если есть общее значение для ПУ и детализация по отделениям - используй только общее значение
+2. Если есть только детализация по отделениям - суммируй значения и создай одну запись для ПУ
+3. Не создавай отдельные записи для отделений
+
+Особенности культур:
+2-е диск сах св под пш - тут культура пшеница озимая товарная, а не сахарная свекла. Культура - это то, под которое проводится операция.
+
+ВАЖНО: даже если ты видишь очень похожее сообщение как в примерах, но в нем нет какой-то информации, которая есть в примере, тебе не нужно дополнять этой информацией результат. Смотри только на само сообщение для обработки."""
+    
         return system_prompt
 
 
@@ -179,6 +212,8 @@ class LLMProcess:
 
             response = completion.choices[0].message.content
 
+            print(response)
+
             try:
                 # Пробуем распарсить ответ как JSON
                 parsed_results = json.loads(response)
@@ -186,11 +221,14 @@ class LLMProcess:
                 if not isinstance(parsed_results, list):
                     parsed_results = [parsed_results]
 
-                # Заменяем None и "N/A" на пустую строку
+                # Заменяем None и "N/A" на пустую строку и нормализуем числовые значения
                 for result in parsed_results:
                     for key in result:
-                        if result[key] is None:
-                            result[key] = "N/A"
+                        if result[key] is None or result[key] == "N/A":
+                            result[key] = ""
+                        elif key in ["За день, га", "С начала операции, га", "Вал за день, ц", "Вал с начала, ц"]:
+                            # Нормализуем числовые значения
+                            result[key] = self._normalize_numeric_value(result[key])
 
                 return parsed_results
 
@@ -232,6 +270,49 @@ class LLMProcess:
                 "Вал с начала, ц": "",
                 "Исходное сообщение": messages if messages else ""
             }]
+            
+    def _normalize_numeric_value(self, value):
+        """Нормализует числовые значения для корректного сравнения.
+        
+        Args:
+            value: Значение для нормализации
+            
+        Returns:
+            str: Нормализованное значение
+        """
+        if value is None or value == "":
+            return ""
+        
+        # Преобразуем в строку, если это не строка
+        if not isinstance(value, str):
+            value = str(value)
+        
+        # Заменяем запятые на точки для десятичных чисел
+        value = value.replace(',', '.')
+        
+        # Удаляем лишние пробелы
+        value = value.strip()
+        
+        # Проверяем, является ли значение числом
+        try:
+            # Пробуем преобразовать в float
+            float_value = float(value)
+            
+            # Проверяем, не является ли значение слишком большим (возможно, пропущена десятичная точка)
+            if float_value > 1000000:  # Если значение больше миллиона
+                # Проверяем, не является ли это значением с пропущенной десятичной точкой
+                # Например, 1259680 может быть 12596.80
+                if '.' not in value and len(value) > 6:
+                    # Добавляем десятичную точку перед последними двумя цифрами
+                    value = value[:-2] + '.' + value[-2:]
+                    # Преобразуем обратно в float и форматируем
+                    float_value = float(value)
+            
+            # Форматируем число с двумя знаками после запятой
+            return f"{float_value:.2f}"
+        except ValueError:
+            # Если не удалось преобразовать в число, возвращаем исходное значение
+            return value
 
     def process_agro_messages(self, messages: List[str], save_to_excel: bool = False,
                               output_path: Optional[str] = None) -> pd.DataFrame:
@@ -254,9 +335,14 @@ class LLMProcess:
 
 
         # Обработка сообщений по батчам
-
+        print(messages)
         batch_results = self.process_messages_batch(messages, system_prompt, client)
 
+        #print(batch_results)
+
+        # result_df = pd.DataFrame(batch_results)
+
+        # result_df.to_excel("test_results/16_04_xlsx", index=False)
 
         # Создаем финальный DataFrame
         columns = [
@@ -281,21 +367,17 @@ class LLMProcess:
     def process_messages(self, append_to_excel, message, exel_path, date):
         """Основной запуск для тестирования скрипта"""
         try:
-            # # Загружаем сообщения из Excel
-            # messages_df = pd.read_excel(
-            #     os.path.join(self.DATA_DIR, "messages.xlsx"),
-            #     engine='openpyxl'
-            # )
-
-
             # Обрабатываем сообщения
-            results_df = self.process_agro_messages(
+            results = self.process_agro_messages(
                 messages=message,
                 save_to_excel=True
             )
 
-            append_to_excel(filepath=exel_path, message_dict=results_df[0], date_value=date)
-            return results_df
+            # Сохраняем все операции из сообщения
+            for operation in results:
+                append_to_excel(filepath=exel_path, message_dict=operation, date_value=date)
+
+            return results
         except Exception as e:
             #self.logger.error(f"Ошибка в основной функции: {e}")
             raise
