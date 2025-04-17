@@ -42,7 +42,7 @@ class DataSave:
         message_num = self._get_next_message_number(sender)
         timestamp_str = self.convert_iso_to_custom_format(timestamp)
         file_name = f"{sender}_{message_num}_{timestamp_str}.txt"
-        file_path = os.path.join(self.base_dir, file_name)
+        file_path = os.path.join(self.base_dir, 'txt_messages',  file_name)
 
         with open(file_path, 'w', encoding='utf-8') as file:
             file.write(content + '\n')
@@ -100,9 +100,28 @@ class DataSave:
             value = message_dict.get(header, "")
             fill = None
 
-            if header == "Дата" and not value:
-                value = date_value
-                fill = yellow_fill
+            if header == "Дата":
+                if not value:
+                    value = date_value
+                    fill = yellow_fill
+                # Преобразуем дату в формат дд.мм.2025
+                try:
+                    if "T" in value:  # ISO формат
+                        dt = datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%fZ")
+                        value = f"{dt.day:02d}.{dt.month:02d}.2025"
+                    elif " " in value:  # Формат с временем
+                        dt = datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+                        value = f"{dt.day:02d}.{dt.month:02d}.2025"
+                    elif "-" in value:  # Формат YYYY-MM-DD
+                        parts = value.split("-")
+                        if len(parts) == 3:
+                            value = f"{parts[2]}.{parts[1]}.2025"
+                    elif "." in value:  # Формат дд.мм.гггг
+                        parts = value.split(".")
+                        if len(parts) == 3:
+                            value = f"{parts[0]}.{parts[1]}.2025"
+                except:
+                    pass
             elif value in [None, ""]:
                 fill = yellow_fill
 

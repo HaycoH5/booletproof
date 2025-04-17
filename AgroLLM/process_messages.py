@@ -92,110 +92,102 @@ class LLMProcess:
 
         # Форматирование примеров
         examples_text = ""
-        for i, example in enumerate(examples[:3], 1):  # Use first 3 examples
+        for i, example in enumerate(examples, 1):
             message = example.get("Сообщение", "")
             data = example.get("Данные", [])
 
-            examples_text += f"\nExample {i}:\n```\n{message}\n```\n\n"
+            examples_text += f"\nПример {i}:\n```\n{message}\n```\n\n"
 
             if data:
-                examples_text += "Should be parsed into:\n"
+                examples_text += "Обработанные данные:\n"
                 for item in data:
                     examples_text += f"- {item}\n"
                 examples_text += "\n"
 
-        system_prompt = f"""You are an expert in parsing agricultural messages. Your task is to extract structured information from messages.
+        system_prompt = f"""Ты - эксперт по обработке агросообщений. Твоя задача - извлекать структурированную информацию из сообщений.
 
-    Reference information for parsing:
-    {extra_info_text}
+АЛГОРИТМ ОБРАБОТКИ ДАТЫ (САМОЕ ВАЖНОЕ - ВЫПОЛНЯТЬ В ПЕРВУЮ ОЧЕРЕДЬ):
+1. Перед любой другой обработкой, ВСЕГДА проверяй первую строку сообщения.
+2. Если эта строка содержит ТОЛЬКО числа с точкой между ними (например, "11.09", "12.10", "6.05") - ЭТО ДАТА в формате ДД.ММ.
+3. Если строка выглядит как "11.09", "12.10", "13.08" и т.д. - это дата в формате ДД.ММ без года.
+4. При обнаружении даты в таком формате, ОБЯЗАТЕЛЬНО добавь ее в поле "Дата" в формате "дд.мм.гггг".
+5. НИКОГДА не оставляй поле даты пустым, если в сообщении есть строки вида "11.09", "6.05", "24.12" и т.п.
 
-    IMPORTANT: When filling the "Подразделение" field, use the table "Принадлежность отделений и ПУ" from the reference information above to determine the correct department name. For example, if you see "Отд 11", look up which "ПУ" it belongs to in the reference table and use that as the "Подразделение" value.
+ПРИМЕРЫ ВЫДЕЛЕНИЯ ДАТЫ:
+- Если первая строка сообщения: "11.09" → Дата = "11.09.2025"
+- Если первая строка сообщения: "6.05" → Дата = "06.05.2025"
+- Если первая строка сообщения: "13.08" → Дата = "13.08.2025"
 
-    IMPORTANT: The department name can be specified with the prefix "ПУ" (e.g., "ПУ Восход") or without it (just "Восход"). In both cases, it is the same department. If the message specifies a department name without the "ПУ" prefix, still use it as the full department name.
+Справочная информация:
+{extra_info_text}
 
-    IMPORTANT: When you see "Многолетние травы" in the message, ALWAYS use the full name "Многолетние травы текущего года" in the "Культура" field.
+ВАЖНО: Примеры приведены только для демонстрации формата обработки. Не используй никакие данные из примеров при обработке реальных сообщений. Извлекай информацию ТОЛЬКО из текста самого сообщения:
 
-    IMPORTANT: For "Вал" values (both "Вал за день, ц" and "Вал с начала, ц"), be aware that decimal points are often omitted in messages. For example, if you see "37400", it likely means "374.00". If a value seems unusually large (more than 10000), consider that it might be missing a decimal point. In such cases, add a decimal point before the last two digits.
+1. Дата - ОБЯЗАТЕЛЬНО извлекать, если она указана в первой строке сообщения в формате ЧЧ.ЧЧ
+2. Подразделение - берется из сообщения и строго по справочнику 
+3. Операция - берется из сообщения и строго по справочнику
+4. Культура - берется из сообщения и строго по справочнику
+5. Числовые значения - только из текста сообщения
 
-    IMPORTANT: For the "Операция" field, you MUST use EXACTLY the operation name from the "Операции" table in the reference information. Do not use variations or abbreviations. For example, if the message says "Посев", but the correct operation in the table is "Сев", you should use "Сев". If you're unsure which operation to choose, carefully analyze the message and select the most appropriate one from the table.
+ДОПОЛНИТЕЛЬНО ПРО ДАТЫ:
+- Дата ПОЧТИ ВСЕГДА указывается в первой строке сообщения
+- Дата может быть в форматах: дд.мм, д.мм, дд.м или д.м (например: 11.09, 6.05, 13.8, 1.2)
+- Другие форматы даты: дд.мм.гггг, дд.мм.ггг. (например: 30.03.25г., 29.06.2025)
+- Иногда после даты может быть слово "день" (например: 24.12 день)
+- Если год не указан явно, используй 2025
+- Первая строка сообщения, содержащая только числа с точкой - это ВСЕГДА дата
 
-    IMPORTANT: For numeric fields (like "За день, га", "С начала операции, га", "Вал за день, ц", "Вал с начала, ц"), if you cannot extract a value, use an empty string ("") instead of null or "N/A". Never return null values for these fields.
+ЖЕСТКИЕ ПРАВИЛА:
+- Если ты вообще не видишь какой-либо информации в сообщении, то в соответствующем поле должна быть пустая строка.
+- Никогда не подставляй даты или другие данные из примеров
+- Используй только ту информацию, которая есть в текущем обрабатываемом сообщении
 
-    Examples of message processing:
-    {examples_text}
+Основные правила:
+1. Название подразделения может быть с префиксом "ПУ" или без него
+2. "Многолетние травы" = "Многолетние травы текущего года"
+3. В значениях "Вал" часто пропущена десятичная точка перед последними двумя цифрами (37480 = 374.8 или 264491 = 2644.91)
+4. Используй точные названия операций из справочника
+5. Пустые значения = пустая строка (""), не null и не "N/A"
 
-    I will provide you with messages. Each message might contain one or multiple operations.
-    Please analyze each message and extract the following information for each operation:
-    1. Дата (Date) - if specified for the whole message, use it for all operations
-    2. Подразделение (Department/Unit) - Use the "Принадлежность отделений и ПУ" table to determine the correct ПУ name for each department
-    3. Операция (Operation type) - the main agricultural operation being performed
-    4. Культура (Crop) - if specified once for multiple operations, use it for all related operations
-    5. За день, га (Area per day, hectares) - first number in pairs like "41/501"
-    6. С начала операции, га (Total area since operation start, hectares) - second number in pairs like "41/501"
-    7. Вал за день, ц (Yield per day, centners)
-    8. Вал с начала, ц (Total yield since operation start, centners)
+Примеры обработки:
+{examples_text}
 
-    Format your response as a JSON array, where each element represents one operation:
-    [
-        {{
-            "Дата": "",
-            "Подразделение": "ПУ \\"Север\\"",
-            "Операция": "Сев",
-            "Культура": "Сахарная свекла",
-            "За день, га": "85",
-            "С начала операции, га": "210",
-            "Вал за день, ц": "",
-            "Вал с начала, ц": "",
-        }},
-        // more operations if present in the message
-    ]
+Формат ответа - JSON-массив:
+[
+    {{
+        "Дата": "дд.мм.гггг",
+        "Подразделение": "ПУ \\"Север\\"",
+        "Операция": "Сев",
+        "Культура": "Сахарная свекла",
+        "За день, га": "85",
+        "С начала операции, га": "210",
+        "Вал за день, ц": "xxx.xx",
+        "Вал с начала, ц": "xxxx.xx"
+    }}
+]
 
-    Important notes:
-    1. If you can't extract some values, leave them empty (empty string). Never return null or "N/A".
-    2. For each operation, include ALL relevant context in the "Исходное сообщение" field, even if it's shared between multiple operations.
-    3. Make sure to properly escape newlines (\\n) and quotes (\") in the "Исходное сообщение" field.
-    4. Pay attention to abbreviated crop names:
-       - "св" or "с. св" = "Сахарная свекла"
-       - "подс" = "Подсолнечник"
-       - "оз п" = "Озимая пшеница"
-       - "кук" = "Кукуруза"
-       - "мн тр" or "многол трав" = "Многолетние травы текущего года"
-    5. Common operation abbreviations:
-       - "пах" = "Пахота"
-       - "диск" = "Дискование"
-       - "культ" = "Культивация"
-       - "предп культ" = "Предпосевная культивация"
-       - "сев" = "Сев"
-    6. When an operation has a total for "ПоПу" (or "По пу") and then individual department values, create separate entries for each department.
-    7. ALWAYS use the "Принадлежность отделений и ПУ" table to determine the correct ПУ name for each department number.
-    8. When you see a value like "152га" or "97га", extract both numbers for "За день, га" and "С начала операции, га" fields. For example, from "152га" extract "152" for both fields.
-    9. When you see a percentage like "100%" or "50%", this indicates the completion percentage of the operation, but you should still extract the area values.
+Примеры сокращений (могут быть и другие):
+- "св" или "с. св" = "Сахарная свекла"
+- "подс" = "Подсолнечник"
+- "оз п" = "Озимая пшеница"
+- "кук" = "Кукуруза"
+- "мн тр" или "многол трав" = "Многолетние травы текущего года"
+- "пах" = "Пахота"
+- "диск" = "Дискование"
+- "культ" = "Культивация"
+- "предп культ" = "Предпосевная культивация"
+- "сев" = "Сев"
 
-    ВАЖНО: При обработке сообщений с детализацией по отделениям (например, "Отд 11-307/307", "Отд 12-671/671" и т.д.):
+Обработка детализации по отделениям:
+1. Если есть общее значение для ПУ и детализация по отделениям - используй только общее значение
+2. Если есть только детализация по отделениям - суммируй значения и создай одну запись для ПУ
+3. Не создавай отдельные записи для отделений
 
-    10. Если в сообщении указано общее значение для подразделения (ПУ) и затем детализация по отделениям, 
-        ВСЕГДА используйте ТОЛЬКО общее значение для подразделения и игнорируйте детализацию по отделениям.
-        
-    11. Пример: "2-я подкормка озимых, ПУ "Юг" - 1850/2700 (в т.ч Амазон-1150/1450, Пневмоход-700/1250)
-        Отд11- 307/307 (амазон 307/307) 
-        Отд 12- 671/671( амазон 318/318; пневмоход 353/353)"
-        
-        В этом случае нужно создать ТОЛЬКО ОДНУ запись для ПУ "Юг" со значениями 1850/2700, 
-        а НЕ создавать отдельные записи для каждого отделения.
-        
-    12. Если в сообщении указано только детализация по отделениям без общего значения для подразделения,
-        суммируйте значения всех отделений и создайте ОДНУ запись для соответствующего подразделения.
-        
-    13. Пример: "Внесение мин удобрений под оз пшеницу 2025 г ПУ Юг 165/7800
-        Отд 17-165/1550"
-        
-        В этом случае нужно создать ОДНУ запись для ПУ "Юг" со значениями 165/7800,
-        а НЕ создавать отдельную запись для Отд 17.
-        
-    14. Помните: ваша задача - создать записи на уровне подразделения (ПУ), а не на уровне отделений.
-        Детализация по отделениям предоставляется только для информационных целей и не должна
-        приводить к созданию отдельных записей в результатах."""
-        
+Особенности культур:
+2-е диск сах св под пш - тут культура пшеница озимая товарная, а не сахарная свекла. Культура - это то, под которое проводится операция.
+
+ВАЖНО: даже если ты видишь очень похожее сообщение как в примерах, но в нем нет какой-то информации, которая есть в примере, тебе не нужно дополнять этой информацией результат. Смотри только на само сообщение для обработки."""
+    
         return system_prompt
 
 
@@ -219,6 +211,8 @@ class LLMProcess:
             )
 
             response = completion.choices[0].message.content
+
+            print(response)
 
             try:
                 # Пробуем распарсить ответ как JSON
@@ -344,7 +338,7 @@ class LLMProcess:
         print(messages)
         batch_results = self.process_messages_batch(messages, system_prompt, client)
 
-        print(batch_results)
+        #print(batch_results)
 
         # result_df = pd.DataFrame(batch_results)
 
@@ -373,22 +367,17 @@ class LLMProcess:
     def process_messages(self, append_to_excel, message, exel_path, date):
         """Основной запуск для тестирования скрипта"""
         try:
-            # # Загружаем сообщения из Excel
-            # messages_df = pd.read_excel(
-            #     os.path.join(self.DATA_DIR, "messages.xlsx"),
-            #     engine='openpyxl'
-            # )
-
-
             # Обрабатываем сообщения
-            results_df = self.process_agro_messages(
+            results = self.process_agro_messages(
                 messages=message,
                 save_to_excel=True
             )
 
-            append_to_excel(filepath=exel_path, message_dict=results_df[0], date_value=date)
-            # print(results_df)
-            return results_df
+            # Сохраняем все операции из сообщения
+            for operation in results:
+                append_to_excel(filepath=exel_path, message_dict=operation, date_value=date)
+
+            return results
         except Exception as e:
             #self.logger.error(f"Ошибка в основной функции: {e}")
             raise

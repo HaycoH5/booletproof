@@ -60,7 +60,7 @@ def load_instruction_data(file_path: str = None) -> Dict:
     return data
 
 
-def split_examples(instruction_data: Dict, train_size: int = 5, random_seed: int = 42) -> Tuple[List[Dict], List[Dict]]:
+def split_examples(instruction_data: Dict, train_size: int = 5, random_seed: int = 13) -> Tuple[List[Dict], List[Dict]]:
     """Разделяет примеры на обучающие и тестовые.
     
     Args:
@@ -177,7 +177,7 @@ def normalize_numeric_value(value):
     value = value.strip()
     
     # Для дат игнорируем год
-    if ":" in value and "-" in value:  # Похоже на дату
+    if "-" in value:  # Похоже на дату
         try:
             # Извлекаем только месяц и день
             parts = value.split(" ")[0].split("-")
@@ -191,20 +191,10 @@ def normalize_numeric_value(value):
         # Пробуем преобразовать в float
         float_value = float(value)
         
-        # Проверяем, не является ли значение слишком большим (возможно, пропущена десятичная точка)
-        if float_value > 1000000:  # Если значение больше миллиона
-            # Проверяем, не является ли это значением с пропущенной десятичной точкой
-            # Например, 1259680 может быть 12596.80
-            if '.' not in value and len(value) > 6:
-                # Добавляем десятичную точку перед последними двумя цифрами
-                value = value[:-2] + '.' + value[-2:]
-                # Преобразуем обратно в float и форматируем
-                float_value = float(value)
-        
-        # Форматируем число с двумя знаками после запятой
+        # Форматируем с двумя знаками после запятой
         return f"{float_value:.2f}"
     except ValueError:
-        # Если не удалось преобразовать в число, возвращаем исходное значение
+        # Если не удалось преобразовать в число, возвращаем как есть
         return value
 
 
@@ -384,15 +374,23 @@ def analyze_errors(test_results: List[Dict]) -> pd.DataFrame:
                 if ((expected_value is None or expected_value == "" or expected_value == "N/A") and 
                     (actual_value is None or actual_value == "" or actual_value == "N/A")):
                     values_match = True
+                # Для дат используем нормализацию
+                elif column == "Дата":
+                    normalized_expected = normalize_numeric_value(expected_value)
+                    normalized_actual = normalize_numeric_value(actual_value)
+                    if normalized_expected == normalized_actual:
+                        values_match = True
                 # Для числовых колонок используем нормализацию
                 elif column in ["За день, га", "С начала операции, га", "Вал за день, ц", "Вал с начала, ц"]:
                     normalized_expected = normalize_numeric_value(expected_value)
                     normalized_actual = normalize_numeric_value(actual_value)
                     if normalized_expected == normalized_actual:
                         values_match = True
-                # Для остальных колонок сравниваем напрямую
-                elif expected_value == actual_value:
-                    values_match = True
+                # Для остальных колонок сравниваем напрямую, предварительно нормализовав строки
+                else:
+                    if expected_value is not None and actual_value is not None:
+                        if expected_value.strip() == actual_value.strip():
+                            values_match = True
                 
                 # Если значения не совпадают после всех проверок, добавляем ошибку
                 if not values_match:
