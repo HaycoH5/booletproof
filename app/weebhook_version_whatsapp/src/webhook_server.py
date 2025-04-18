@@ -48,10 +48,12 @@ def webhook():
         except ValueError:
             return jsonify({'error': 'Invalid media_data format'}), 400
 
-        data = llm_process_image.process_images(image_paths=[media_path],
+        # Получаем результаты OCR
+        ocr_results = llm_process_image.process_images(image_paths=[media_path],
                                                       prompt="На этой фотографии должна быть таблица. Перепиши...")
-
-        results = llm_process_text.process_messages(data)
+        
+        # Обрабатываем результаты OCR
+        results = llm_process_image.process_ocr_results(ocr_results)
 
     else:
         # Сохраняем данные

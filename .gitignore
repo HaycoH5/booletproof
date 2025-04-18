@@ -54,7 +54,6 @@ ENV/
 
 # Logs
 *.log
-*.txt
 
 # Local development settings
 .env.local
@@ -65,5 +64,6 @@ ENV/
 node_modules/
 .wwebjs_cache/
 
-weebhook_version_whatsapp/package-lock.json
-weebhook_version_whatsapp/package.json
+app/weebhook_version_whatsapp/package-lock.json
+app/weebhook_version_whatsapp/package.json
+app/weebhook_version_whatsapp/.wwebjs_auth/session
