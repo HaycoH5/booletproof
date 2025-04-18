@@ -11,8 +11,7 @@ from datetime import datetime
 import sys
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../AgroLLM'))
-import LLM_config
-
+from app.AgroLLM.src import LLM_config
 
 class LLMProcess:
     """Класс для обработки сырых агросообщений с помощью LLM модели"""

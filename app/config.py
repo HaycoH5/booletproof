@@ -1,0 +1,5 @@
+BASE_DIR = "tests1"
+TEXT_DIR = "TXT_DIR"
+EXEL_TABLE_DIR = "EXEL_DIR"
+
+EXEL_TABLE_BASE_NAME = "template.xlsx"

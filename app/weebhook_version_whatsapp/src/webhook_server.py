@@ -2,17 +2,18 @@ from flask import Flask, request, jsonify
 from datetime import datetime, timezone
 from pathlib import Path
 import os
-
-from AgroLLM.process_messages import LLMProcess
-from user_and_system_interface.data_save import DataSave
-
-import config
-
-app = Flask(__name__)
+from app.AgroLLM.src.process_messages import LLMProcess
+from app.user_and_system_interface.src.data_save import DataSave
+from app import config
 
 # Инициализация компонентов
 data_save = DataSave(config.BASE_DIR, config.EXEL_TABLE_BASE_NAME)
 llm_process = LLMProcess()
+
+
+
+app = Flask(__name__)
+
 
 # Базовая директория для хранения данных
 BASE_DIR = Path('agro_data')

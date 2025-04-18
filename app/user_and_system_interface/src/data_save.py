@@ -1,9 +1,8 @@
 import os
 from datetime import datetime
 from typing import Dict, Any
-from openpyxl import load_workbook
-from openpyxl.styles import Font, PatternFill, Alignment
-
+from openpyxl import load_workbook, Workbook
+from openpyxl.styles import Font, Alignment, PatternFill, PatternFill, Alignment
 
 class DataSave:
     """Сохраняет данные формата JSON в текстовые и табличные форматы."""
@@ -42,19 +41,27 @@ class DataSave:
         message_num = self._get_next_message_number(sender)
         timestamp_str = self.convert_iso_to_custom_format(timestamp)
         file_name = f"{sender}_{message_num}_{timestamp_str}.txt"
-        file_path = os.path.join(self.base_dir, 'txt_messages',  file_name)
+        file_path = os.path.join(self.base_dir, file_name)
 
         with open(file_path, 'w', encoding='utf-8') as file:
             file.write(content + '\n')
 
     def append_message_to_table(
-        self, filepath: str, message_dict: Dict[str, Any], date_value: str
+        self, filepath: str,
+            message_dict: Dict[str, Any],
+            date_value: str
+
     ) -> None:
         """
         Добавляет строку в Excel-таблицу. Пустые значения, включая автозаполненную дату, выделяются жёлтым.
         """
-        full_path = os.path.join(filepath, self.current_table_name)
-        wb = load_workbook(full_path)
+
+
+
+        if self.current_table_name not in filepath:
+            self.create_agro_report(filepath)
+
+        wb = load_workbook(filepath)
         ws = wb.active
 
         headers = [
@@ -88,7 +95,7 @@ class DataSave:
         next_row = header_row + 1
         while ws.cell(row=next_row, column=header_map.get("подразделение", 2)).value:
             next_row += 1
-        
+
         # Заполнение новой строки
         for header in headers:
             key = header.strip().lower()
@@ -100,28 +107,9 @@ class DataSave:
             value = message_dict.get(header, "")
             fill = None
 
-            if header == "Дата":
-                if not value:
-                    value = date_value
-                    fill = yellow_fill
-                # Преобразуем дату в формат дд.мм.2025
-                try:
-                    if "T" in value:  # ISO формат
-                        dt = datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%fZ")
-                        value = f"{dt.day:02d}.{dt.month:02d}.2025"
-                    elif " " in value:  # Формат с временем
-                        dt = datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
-                        value = f"{dt.day:02d}.{dt.month:02d}.2025"
-                    elif "-" in value:  # Формат YYYY-MM-DD
-                        parts = value.split("-")
-                        if len(parts) == 3:
-                            value = f"{parts[2]}.{parts[1]}.2025"
-                    elif "." in value:  # Формат дд.мм.гггг
-                        parts = value.split(".")
-                        if len(parts) == 3:
-                            value = f"{parts[0]}.{parts[1]}.2025"
-                except:
-                    pass
+            if header == "Дата" and not value:
+                value = date_value
+                fill = yellow_fill
             elif value in [None, ""]:
                 fill = yellow_fill
 
@@ -129,7 +117,59 @@ class DataSave:
             if fill:
                 cell.fill = fill
 
-        new_table_name = full_path.replace("template.xlsx", f"{self.current_data()}_BulletProof.xlsx")
-        wb.save(new_table_name)
+        wb.save(full_path)
+
+        # Переименование файла
+        new_table_name = f"{self.current_data()}_BulletProof.xlsx"
+        new_full_path = os.path.join(filepath, new_table_name)
+        os.rename(full_path, new_full_path)
 
         self.current_table_name = new_table_name
+
+
+    def create_agro_report(self, filename: str, path: str):
+        # Создание книги и листа
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Отчёт"
+
+        # Заголовки таблицы
+        headers = [
+            "Дата", "Подразделение", "Операция", "Культура",
+            "За день, га", "Начала операции", "Вал за день, ц", "Вал с начала, ц"
+        ]
+
+        # Стили
+        header_font = Font(bold=True)
+        header_fill = PatternFill(start_color="D8E4BC", end_color="D8E4BC", fill_type="solid")
+        center_align = Alignment(horizontal="center", vertical="center")
+
+        # Заполнение заголовков
+        for col_num, header in enumerate(headers, 1):
+            cell = ws.cell(row=2, column=col_num, value=header)
+            cell.font = header_font
+            cell.alignment = center_align
+            cell.fill = header_fill
+            ws.column_dimensions[cell.column_letter].width = 18
+
+        # Добавляем пустые строки под таблицу
+        for row in ws.iter_rows(min_row=3, max_row=22, min_col=1, max_col=len(headers)):
+            for cell in row:
+                cell.alignment = center_align
+
+        # Сохранение
+        if not filename.lower().endswith(".xlsx"):
+            filename += ".xlsx"
+
+        print(os.listdir())
+        wb.save(filename)
+        self.current_table_name = filename
+        print(filename)
+        print(f"Файл успешно сохранён как: {filename}")
+
+    def create_structure(self, paths_list):
+
+
+        for path in paths_list:
+            if not os.path.exists(path):
+                os.mkdir(path)
