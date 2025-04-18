@@ -46,9 +46,8 @@ def webhook():
             with open(media_path, 'wb') as f:
                 f.write(bytes.fromhex(data['media_data']))
         except ValueError:
-            print(11111)
             return jsonify({'error': 'Invalid media_data format'}), 400
-        print(222222222)
+
         data = llm_process_image.process_images(image_paths=[media_path],
                                                       prompt="На этой фотографии должна быть таблица. Перепиши...")
 

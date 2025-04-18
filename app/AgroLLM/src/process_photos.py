@@ -84,12 +84,12 @@ class ImageProcessor:
         return f"data:image/{mime};base64,{b64}"
 
 
-if __name__ == "__main__":
-    # локальный тест
-    processor = ImageProcessor()
-    # замените на путь к вашей тестовой картинке
-    demo = processor.process_images(
-        image_paths=["1.jpg"],
-        prompt="На этой фотографии должна быть таблица. Перепиши..."
-    )
-    print(demo)
+# if __name__ == "__main__":
+#     # локальный тест
+#     processor = ImageProcessor()
+#     # замените на путь к вашей тестовой картинке
+#     demo = processor.process_images(
+#         image_paths=["1.jpg"],
+#         prompt="На этой фотографии должна быть таблица. Перепиши..."
+#     )
+#     print(demo)
