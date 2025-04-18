@@ -194,11 +194,11 @@ class LLMProcess:
         """Обработка батча сообщений с помощью API"""
 
         # Объединяем сообщения в один текст с разделителями
-        batch_text = "\n\n=== NEXT MESSAGE ===\n\n".join(messages)
+        #batch_text = "\n\n=== NEXT MESSAGE ===\n\n".join(messages)
 
         messages_for_api = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": batch_text}
+            {"role": "user", "content": messages}
         ]
 
         try:
@@ -317,7 +317,7 @@ class LLMProcess:
                               output_path: Optional[str] = None) -> pd.DataFrame:
         """Обработка списка агросообщений, сохранение результата в DataFrame (и опционально — Excel)"""
 
-        # Получаем ключ API и инициализируем клиент
+        # Получаем ключ 2API и инициализируем клиент
         api_key = self.api_key
         client = OpenAI(
             api_key=api_key,
@@ -334,7 +334,6 @@ class LLMProcess:
 
 
         # Обработка сообщений по батчам
-        print(messages)
         batch_results = self.process_messages_batch(messages, system_prompt, client)
 
         #print(batch_results)
@@ -365,6 +364,7 @@ class LLMProcess:
 
     def process_messages(self, append_to_excel, message, exel_path, date):
         """Основной запуск для тестирования скрипта"""
+
         try:
             # Обрабатываем сообщения
             results = self.process_agro_messages(
@@ -375,7 +375,6 @@ class LLMProcess:
             # Сохраняем все операции из сообщения
             for operation in results:
                 append_to_excel(filepath=exel_path, message_dict=operation, date_value=date)
-
             return results
         except Exception as e:
             #self.logger.error(f"Ошибка в основной функции: {e}")

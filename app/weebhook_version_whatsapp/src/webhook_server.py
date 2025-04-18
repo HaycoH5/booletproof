@@ -58,7 +58,7 @@ def webhook():
 
     # Сохраняем данные
     print(data)
-    data_save.save_to_txt(data)
+    data_save.save_to_txt(data, config.BASE_DIR + "/" + config.TEXT_DIR)
 
     # Обработка сообщений через LLM
     response = llm_process.process_messages(

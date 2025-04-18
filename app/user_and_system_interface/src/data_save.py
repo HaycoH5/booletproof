@@ -32,7 +32,7 @@ class DataSave:
         """Возвращает следующий порядковый номер сообщения от отправителя."""
         return sum(sender in filename for filename in os.listdir(self.base_dir)) + 1
 
-    def save_to_txt(self, data: Dict[str, Any]) -> None:
+    def save_to_txt(self, data: Dict[str, Any], path: str) -> None:
         """Сохраняет сообщение в текстовом формате."""
         sender = data["from"]
         timestamp = data["timestamp"]
@@ -41,16 +41,10 @@ class DataSave:
         message_num = self._get_next_message_number(sender)
         timestamp_str = self.convert_iso_to_custom_format(timestamp)
         file_name = f"{sender}_{message_num}_{timestamp_str}.txt"
-        file_path = os.path.join(self.base_dir, file_name)
+        file_path = path + "/" + file_name
 
         with open(file_path, 'w', encoding='utf-8') as file:
             file.write(content + '\n')
-
-    from datetime import datetime
-    from openpyxl import load_workbook
-    from openpyxl.styles import PatternFill
-    from typing import Dict, Any
-    import os
 
 
     def append_message_to_table(self, filepath: str, message_dict: Dict[str, Any], date_value: str) -> None:
@@ -144,7 +138,7 @@ class DataSave:
         # Заголовки таблицы
         headers = [
             "Дата", "Подразделение", "Операция", "Культура",
-            "За день, га", "Начала операции", "Вал за день, ц", "Вал с начала, ц"
+            "За день, га", "С начала операции, га", "Вал за день, ц", "Вал с начала, ц"
         ]
 
         # Стили
