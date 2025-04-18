@@ -211,7 +211,6 @@ class LLMProcess:
 
             response = completion.choices[0].message.content
 
-            print(response)
 
             try:
                 # Пробуем распарсить ответ как JSON
@@ -362,7 +361,7 @@ class LLMProcess:
         return batch_results
 
 
-    def process_messages(self, append_to_excel, message, exel_path, date):
+    def process_messages(self, message):
         """Основной запуск для тестирования скрипта"""
 
         try:
@@ -373,8 +372,6 @@ class LLMProcess:
             )
 
             # Сохраняем все операции из сообщения
-            for operation in results:
-                append_to_excel(filepath=exel_path, message_dict=operation, date_value=date)
             return results
         except Exception as e:
             #self.logger.error(f"Ошибка в основной функции: {e}")

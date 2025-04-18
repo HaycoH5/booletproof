@@ -5,11 +5,12 @@ import os
 from app.AgroLLM.src.process_messages import LLMProcess
 from app.user_and_system_interface.src.data_save import DataSave
 from app import config
+from datetime import datetime
 
 # Инициализация компонентов
 data_save = DataSave(config.BASE_DIR, config.EXEL_TABLE_BASE_NAME)
 llm_process = LLMProcess()
-
+now = datetime.now()
 
 
 app = Flask(__name__)
@@ -57,20 +58,17 @@ def webhook():
         data.pop('media_data', None)
 
     # Сохраняем данные
-    print(data)
     data_save.save_to_txt(data, config.BASE_DIR + "/" + config.TEXT_DIR)
 
     # Обработка сообщений через LLM
-    response = llm_process.process_messages(
-        data_save.append_message_to_table,
-        data.get("content", ""),
-        (config.BASE_DIR + "/" + config.EXEL_TABLE_DIR),
-        data.get("timestamp", "")
+    results = response = llm_process.process_messages(
+        data.get("content", "")
     )
-    print(response)
 
+    data_save.append_message_to_table(message_dict=results,
+                                      filepath=(config.BASE_DIR + "/" + config.EXEL_TABLE_DIR),
+                                      date_value=now.strftime("%M_%H_%d_%m_%Y"))
+    print(data.get("timestamp"))
     return jsonify({'status': 'ok'})
 
 
-if __name__ == '__main__':
-    app.run(debug=True)

@@ -52,82 +52,86 @@ class DataSave:
         Добавляет строку в Excel-таблицу с проверкой типов данных.
         Если значение не прошло проверку, оно сохраняется как есть и выделяется жёлтым.
         """
+        for message in message_dict:
+            if self.current_table_name not in os.listdir(filepath):
+                self.create_agro_report(self.current_table_name, filepath)
 
-        def cast_value(header: str, value: Any):
-            try:
-                if header == "Дата":
-                    return datetime.strptime(str(value), "%Y-%m-%d").date(), False
-                elif header in ["Подразделение", "Операция", "Культура"]:
-                    return str(value), False
-                elif header in ["За день, га", "С начала операции, га", "Вал за день, ц", "Вал с начала, ц"]:
-                    return int(float(value)), False
-            except (ValueError, TypeError):
-                pass
-            return value, True  # Вернуть исходное значение и флаг ошибки
+            def cast_value(header: str, value: Any):
+                try:
+                    if header == "Дата":
+                        return datetime.strptime(str(value), "%Y-%m-%d").date(), False
+                    elif header in ["Подразделение", "Операция", "Культура"]:
+                        return str(value), False
+                    elif header in ["За день, га", "С начала операции, га", "Вал за день, ц", "Вал с начала, ц"]:
+                        return int(float(value)), False
+                except (ValueError, TypeError):
+                    pass
+                return value, True  # Вернуть исходное значение и флаг ошибки
 
-        if self.current_table_name not in filepath:
-            self.create_agro_report(self.current_table_name, filepath)
 
-        filepath_name = filepath + "/" + self.current_table_name
-        wb = load_workbook(filepath_name)
-        ws = wb.active
+            filepath_name = filepath + "/" + self.current_table_name
+            wb = load_workbook(filepath_name)
+            ws = wb.active
 
-        headers = [
-            "Дата", "Подразделение", "Операция", "Культура",
-            "За день, га", "С начала операции, га",
-            "Вал за день, ц", "Вал с начала, ц", "Исходное сообщение"
-        ]
+            headers = [
+                "Дата", "Подразделение", "Операция", "Культура",
+                "За день, га", "С начала операции, га",
+                "Вал за день, ц", "Вал с начала, ц", "Исходное сообщение"
+            ]
 
-        normalized_headers = [h.strip().lower() for h in headers]
-        yellow_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+            normalized_headers = [h.strip().lower() for h in headers]
+            yellow_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
 
-        header_row = None
-        header_map = {}
+            header_row = None
+            header_map = {}
 
-        # Поиск строки с заголовками
-        for row in ws.iter_rows(min_row=1, max_row=50):
-            values = [str(cell.value).strip().lower() if cell.value else '' for cell in row]
-            match_count = sum(1 for val in values if val in normalized_headers)
-            if match_count >= len(headers) - 2:
-                header_row = row[0].row
-                for i, val in enumerate(values):
-                    if val in normalized_headers:
-                        header_map[val] = i + 1
-                break
+            # Поиск строки с заголовками
+            for row in ws.iter_rows(min_row=1, max_row=50):
+                values = [str(cell.value).strip().lower() if cell.value else '' for cell in row]
+                match_count = sum(1 for val in values if val in normalized_headers)
+                if match_count >= len(headers) - 2:
+                    header_row = row[0].row
+                    for i, val in enumerate(values):
+                        if val in normalized_headers:
+                            header_map[val] = i + 1
+                    break
 
-        if not header_row:
-            raise ValueError("Не найдена строка с заголовками.")
+            if not header_row:
+                raise ValueError("Не найдена строка с заголовками.")
 
-        # Поиск первой пустой строки
-        next_row = header_row + 1
-        while ws.cell(row=next_row, column=header_map.get("подразделение", 2)).value:
-            next_row += 1
+            # Поиск первой пустой строки
+            # Поиск первой пустой строки по первому столбцу (или более надёжно по "Дата")
+            date_col = header_map.get("дата", 1)
+            next_row = header_row + 1
 
-        # Заполнение новой строки
-        for header in headers:
-            key = header.strip().lower()
-            col = header_map.get(key)
-            if not col:
-                continue
+            while ws.cell(row=next_row, column=date_col).value:
+                next_row += 1
 
-            value = message_dict.get(header, "")
-            if header == "Дата" and not value:
-                value = date_value
+            # Заполнение новой строки
+            for header in headers:
+                key = header.strip().lower()
+                col = header_map.get(key)
+                if not col:
+                    continue
 
-            casted_value, error = cast_value(header, value)
-            cell = ws.cell(row=next_row, column=col, value=casted_value)
+                value = message.get(header, "")
+                if header == "Дата" and not value:
+                    value = date_value
 
-            if casted_value in [None, ""] or error:
-                cell.fill = yellow_fill
+                casted_value, error = cast_value(header, value)
+                cell = ws.cell(row=next_row, column=col, value=casted_value)
 
-        wb.save(filepath_name)
+                if casted_value in [None, ""] or error:
+                    cell.fill = yellow_fill
 
-        # Переименование файла
-        new_table_name = f"{self.current_data()}_BulletProof.xlsx"
-        new_full_path = os.path.join(filepath, new_table_name)
-        os.rename(filepath_name, new_full_path)
+            wb.save(filepath_name)
 
-        self.current_table_name = new_table_name
+            # Переименование файла
+            new_table_name = f"{self.current_data()}_BulletProof.xlsx"
+            new_full_path = os.path.join(filepath, new_table_name)
+            os.rename(filepath_name, new_full_path)
+
+            self.current_table_name = new_table_name
 
     def create_agro_report(self, filename: str, path: str):
         # Создание книги и листа
