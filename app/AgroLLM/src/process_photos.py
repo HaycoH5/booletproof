@@ -4,7 +4,7 @@ import os
 import base64
 from typing import List, Dict
 from openai import OpenAI
-from AgroLLM.LLM_config import api_key, vision_model_name
+from app.AgroLLM.src.LLM_config import api_key, vision_model_name
 from datetime import datetime, timezone
 
 __all__ = ["ImageProcessor"]
@@ -89,7 +89,7 @@ if __name__ == "__main__":
     processor = ImageProcessor()
     # замените на путь к вашей тестовой картинке
     demo = processor.process_images(
-        image_paths=["/path/to/your/image.jpg"],
+        image_paths=["1.jpg"],
         prompt="На этой фотографии должна быть таблица. Перепиши..."
     )
     print(demo)

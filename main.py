@@ -6,6 +6,7 @@ webhook_server.data_save.create_structure([
     config.BASE_DIR,
     os.path.join(config.BASE_DIR, config.TEXT_DIR),
     os.path.join(config.BASE_DIR, config.EXEL_TABLE_DIR),
+    os.path.join(config.BASE_DIR, config.MEDIA_DIR)
 ])
 
 if __name__ == '__main__':
