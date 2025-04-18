@@ -64,7 +64,7 @@ def webhook():
     response = llm_process.process_messages(
         data_save.append_message_to_table,
         data.get("content", ""),
-        config.EXEL_TABLE_DIR,
+        (config.BASE_DIR + "/" + config.EXEL_TABLE_DIR),
         data.get("timestamp", "")
     )
     print(response)

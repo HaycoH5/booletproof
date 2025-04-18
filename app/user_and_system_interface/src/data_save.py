@@ -46,22 +46,36 @@ class DataSave:
         with open(file_path, 'w', encoding='utf-8') as file:
             file.write(content + '\n')
 
-    def append_message_to_table(
-        self, filepath: str,
-            message_dict: Dict[str, Any],
-            date_value: str
+    from datetime import datetime
+    from openpyxl import load_workbook
+    from openpyxl.styles import PatternFill
+    from typing import Dict, Any
+    import os
 
-    ) -> None:
+
+    def append_message_to_table(self, filepath: str, message_dict: Dict[str, Any], date_value: str) -> None:
         """
-        Добавляет строку в Excel-таблицу. Пустые значения, включая автозаполненную дату, выделяются жёлтым.
+        Добавляет строку в Excel-таблицу с проверкой типов данных.
+        Если значение не прошло проверку, оно сохраняется как есть и выделяется жёлтым.
         """
 
-
+        def cast_value(header: str, value: Any):
+            try:
+                if header == "Дата":
+                    return datetime.strptime(str(value), "%Y-%m-%d").date(), False
+                elif header in ["Подразделение", "Операция", "Культура"]:
+                    return str(value), False
+                elif header in ["За день, га", "С начала операции, га", "Вал за день, ц", "Вал с начала, ц"]:
+                    return int(float(value)), False
+            except (ValueError, TypeError):
+                pass
+            return value, True  # Вернуть исходное значение и флаг ошибки
 
         if self.current_table_name not in filepath:
-            self.create_agro_report(filepath)
+            self.create_agro_report(self.current_table_name, filepath)
 
-        wb = load_workbook(filepath)
+        filepath_name = filepath + "/" + self.current_table_name
+        wb = load_workbook(filepath_name)
         ws = wb.active
 
         headers = [
@@ -80,7 +94,6 @@ class DataSave:
         for row in ws.iter_rows(min_row=1, max_row=50):
             values = [str(cell.value).strip().lower() if cell.value else '' for cell in row]
             match_count = sum(1 for val in values if val in normalized_headers)
-
             if match_count >= len(headers) - 2:
                 header_row = row[0].row
                 for i, val in enumerate(values):
@@ -100,32 +113,27 @@ class DataSave:
         for header in headers:
             key = header.strip().lower()
             col = header_map.get(key)
-
             if not col:
                 continue
 
             value = message_dict.get(header, "")
-            fill = None
-
             if header == "Дата" and not value:
                 value = date_value
-                fill = yellow_fill
-            elif value in [None, ""]:
-                fill = yellow_fill
 
-            cell = ws.cell(row=next_row, column=col, value=value)
-            if fill:
-                cell.fill = fill
+            casted_value, error = cast_value(header, value)
+            cell = ws.cell(row=next_row, column=col, value=casted_value)
 
-        wb.save(full_path)
+            if casted_value in [None, ""] or error:
+                cell.fill = yellow_fill
+
+        wb.save(filepath_name)
 
         # Переименование файла
         new_table_name = f"{self.current_data()}_BulletProof.xlsx"
         new_full_path = os.path.join(filepath, new_table_name)
-        os.rename(full_path, new_full_path)
+        os.rename(filepath_name, new_full_path)
 
         self.current_table_name = new_table_name
-
 
     def create_agro_report(self, filename: str, path: str):
         # Создание книги и листа
@@ -161,11 +169,9 @@ class DataSave:
         if not filename.lower().endswith(".xlsx"):
             filename += ".xlsx"
 
-        print(os.listdir())
-        wb.save(filename)
+        path = path + "/" +  filename
+        wb.save(path)
         self.current_table_name = filename
-        print(filename)
-        print(f"Файл успешно сохранён как: {filename}")
 
     def create_structure(self, paths_list):
 

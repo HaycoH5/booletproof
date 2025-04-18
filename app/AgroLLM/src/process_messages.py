@@ -29,7 +29,7 @@ class LLMProcess:
 
         # Определяем директорию текущего скрипта
         self.SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-        self.DATA_DIR = os.path.join(self.SCRIPT_DIR, "data")  # Путь к данным
+        self.DATA_DIR = os.path.join(self.SCRIPT_DIR, "..", "data")  # если data на уровень выше
         self.LOGS_DIR = os.path.join(self.SCRIPT_DIR, "logs")  # Путь к логам
 
         # Настройка логирования
