@@ -32,18 +32,6 @@ class LLMProcess:
         self.DATA_DIR = os.path.join(self.SCRIPT_DIR, "..", "data")  # если data на уровень выше
         self.LOGS_DIR = os.path.join(self.SCRIPT_DIR, "logs")  # Путь к логам
 
-        # Настройка логирования
-        # logging.basicConfig(
-        #     level=logging.INFO,
-        #     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        #     handlers=[
-        #         logging.FileHandler(
-        #             os.path.join(self.LOGS_DIR, f'processing_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')),
-        #         logging.StreamHandler()
-        #     ]
-        # )
-        # self.logger = logging.getLogger(__name__)
-
 
     def read_instruction_file(self):
         """Чтение файла с инструкциями (JSON)"""
@@ -194,7 +182,6 @@ class LLMProcess:
         """Обработка батча сообщений с помощью API"""
 
         # Объединяем сообщения в один текст с разделителями
-        #batch_text = "\n\n=== NEXT MESSAGE ===\n\n".join(messages)
 
         messages_for_api = [
             {"role": "system", "content": system_prompt},
@@ -231,7 +218,6 @@ class LLMProcess:
                 return parsed_results
 
             except json.JSONDecodeError as e:
-                #self.logger.error(f"Ошибка при разборе JSON: {e}")
 
                 try:
                     import re
@@ -256,7 +242,6 @@ class LLMProcess:
                 }]
 
         except Exception as e:
-            #self.logger.error(f"Ошибка при запросе к API: {e}")
             return [{
                 "Дата": "",
                 "Подразделение": "",
@@ -329,17 +314,10 @@ class LLMProcess:
         # Создаем системный промпт
         system_prompt = self.create_system_prompt(instruction_data)
 
-        #self.logger.info(f"Всего сообщений для обработки: {len(messages)}")
 
 
         # Обработка сообщений по батчам
         batch_results = self.process_messages_batch(messages, system_prompt, client)
-
-        #print(batch_results)
-
-        # result_df = pd.DataFrame(batch_results)
-
-        # result_df.to_excel("test_results/16_04_xlsx", index=False)
 
         # Создаем финальный DataFrame
         columns = [
@@ -353,10 +331,6 @@ class LLMProcess:
             "Вал с начала, ц",
             "Исходное сообщение"
         ]
-
-        results_df = pd.DataFrame(batch_results, columns=columns)
-
-        #self.logger.info(f"Обработка завершена! Всего найдено операций: {len(batch_results)}")
 
         return batch_results
 
@@ -374,5 +348,4 @@ class LLMProcess:
             # Сохраняем все операции из сообщения
             return results
         except Exception as e:
-            #self.logger.error(f"Ошибка в основной функции: {e}")
             raise
